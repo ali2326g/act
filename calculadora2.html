@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimación Puntual e Intervalo</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            animation: fadeIn 1s ease-in-out;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .card {
+            border-radius: 40px; /* Más redondeado */
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.5s ease-out;
+        }
+        .card-header {
+            background-color: #28a745;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-top-left-radius: 40px;
+            border-top-right-radius: 40px;
+            position: relative;
+        }
+        .card-body {
+            background-color: #ffffff;
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            border-radius: 20px; /* Más redondeado */
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #004085;
+            transform: scale(1.05);
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            border-radius: 20px; /* Más redondeado */
+            transition: all 0.3s ease;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+            transform: scale(1.05);
+        }
+        .list-group-item {
+            padding: 15px;
+            font-size: 1.1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px; /* Más redondeado */
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            opacity: 0;
+            animation: fadeInUp 1s forwards;
+        }
+        .list-group-item:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+            transform: translateX(5px);
+        }
+        .alert-info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            opacity: 0;
+            animation: fadeInUp 1s forwards;
+            border-radius: 20px; /* Más redondeado */
+        }
+        .alert-info h3 {
+            margin-bottom: 15px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            display: none; /* inicialmente oculto */
+            border-radius: 20px; /* Más redondeado */
+        }
+        .mb-4 {
+            margin-bottom: 2rem;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInHistory {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .collapse-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            transition: transform 0.3s ease-in-out; /* Animación de transición */
+        }
+
+        .collapse-button.rotate {
+            transform: rotate(180deg); /* Flecha hacia arriba */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4 text-primary">Estimación Puntual e Intervalo</h1>
+        <p class="text-center text-muted">Ingrese los datos solicitados para calcular la estimación puntual y el intervalo de confianza. Esta herramienta calcula un intervalo basado en la media, desviación estándar y tamaño de muestra proporcionados, usando un nivel de confianza que puede ser ajustado.</p>
+
+        <!-- Ejemplos colapsable -->
+        <div class="card mb-4">
+            <div class="card-header" id="headingExamples">
+                <h5 class="mb-0" style="color: white;">
+                    Ejemplos
+                </h5>
+                <button class="btn btn-link collapse-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExamples" aria-expanded="false" aria-controls="collapseExamples" onclick="toggleArrow()">
+                    <i class="bi bi-chevron-down" style="color: white;"></i> <!-- Flecha -->
+                </button>
+            </div>
+            <div id="collapseExamples" class="collapse" aria-labelledby="headingExamples" data-bs-parent="#accordionExample">
+                <div class="card-body">
+                    <ul id="ejemplos" class="list-group"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulario de datos -->
+        <div id="datos-iniciales" class="card mb-4">
+            <div class="card-header">
+                <h5>Datos Iniciales</h5>
+            </div>
+            <div class="card-body">
+                <!-- Alerta dentro de Datos Iniciales -->
+                <div id="alerta" class="alert alert-success mb-4" role="alert" style="display: none;">
+                    <strong>¡Cálculo realizado correctamente!</strong> El ejercicio se ha calculado con éxito.
+                </div>
+                <div class="mb-3">
+                    <label for="media" class="form-label">Media (x̄):</label>
+                    <input type="number" id="media" class="form-control" placeholder="Ingrese la media de la muestra">
+                    <small class="text-muted">La media es el valor promedio de la muestra.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="desviacion" class="form-label">Desviación estándar (σ):</label>
+                    <input type="number" id="desviacion" class="form-control" placeholder="Ingrese la desviación estándar">
+                    <small class="text-muted">La desviación estándar mide la dispersión de los datos.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="n" class="form-label">Tamaño de la muestra (n):</label>
+                    <input type="number" id="n" class="form-control" placeholder="Ingrese el tamaño de la muestra">
+                    <small class="text-muted">El tamaño de la muestra es el número de observaciones tomadas.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="nivel" class="form-label">Nivel de confianza (%):</label>
+                    <input type="number" id="nivel" class="form-control" placeholder="Por ejemplo, 95 para 95%">
+                    <small class="text-muted">El nivel de confianza es el porcentaje de certeza en los resultados.</small>
+                </div>
+                <button class="btn btn-primary w-100" onclick="calcularEstimacion()">Calcular</button>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        <div id="resultado" class="alert alert-info d-none">
+            <h3>Resultados</h3>
+            <p><strong>Estimación Puntual:</strong> <span id="puntual"></span></p>
+            <p><strong>Intervalo de Confianza:</strong> (<span id="inferior"></span>, <span id="superior"></span>)</p>
+        </div>
+
+        <!-- Historial de cálculos -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Historial de Cálculos</h5>
+            </div>
+            <div class="card-body">
+                <ul id="historial" class="list-group"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const ejemplos = [
+            { 
+                media: 1.7, 
+                desviacion: 0.1, 
+                n: 30, 
+                nivel: 95, 
+                enunciado: "Ejemplo 1: En un estudio sobre la altura promedio de una planta en crecimiento, se determinó una media de 1.7 metros con una desviación estándar de 0.1 metros. Se tomó una muestra de 30 plantas y el nivel de confianza utilizado fue del 95%."
+            },
+            { 
+                media: 2.5, 
+                desviacion: 0.2, 
+                n: 50, 
+                nivel: 99, 
+                enunciado: "Ejemplo 2: Un laboratorio analizó la concentración de una sustancia en miligramos por litro (mg/L) y obtuvo una media de 2.5 mg/L con una desviación estándar de 0.2 mg/L. El tamaño de la muestra fue de 50 mediciones y el nivel de confianza fue del 99%."
+            },
+            { 
+                media: 3.0, 
+                desviacion: 0.3, 
+                n: 40, 
+                nivel: 90, 
+                enunciado: "Ejemplo 3: Una encuesta sobre la satisfacción promedio de clientes en una escala del 1 al 5 obtuvo una media de 3.0 puntos con una desviación estándar de 0.3 puntos. La muestra consistió en 40 participantes y el nivel de confianza fue del 90%."
+            }
+        ];
+
+        const historial = JSON.parse(localStorage.getItem('historial')) || [];
+    
+        function calcularEstimacion() {
+            const media = parseFloat(document.getElementById('media').value);
+            const desviacion = parseFloat(document.getElementById('desviacion').value);
+            const n = parseInt(document.getElementById('n').value);
+            const nivel = parseFloat(document.getElementById('nivel').value) / 100;
+    
+            if (isNaN(media) || isNaN(desviacion) || isNaN(n) || isNaN(nivel)) {
+                alert('Por favor, complete todos los campos con valores válidos.');
+                return;
+            }
+    
+            const z = nivel === 0.95 ? 1.96 : (nivel === 0.99 ? 2.58 : 1.64); // Valores Z aproximados
+            const margenError = z * (desviacion / Math.sqrt(n));
+    
+            const inferior = (media - margenError).toFixed(2);
+            const superior = (media + margenError).toFixed(2);
+    
+            document.getElementById('puntual').innerText = media.toFixed(2);
+            document.getElementById('inferior').innerText = inferior;
+            document.getElementById('superior').innerText = superior;
+            document.getElementById('resultado').classList.remove('d-none');
+
+            // Mostrar alerta dentro de Datos Iniciales
+            const alerta = document.getElementById('alerta');
+            alerta.style.display = 'block';
+            setTimeout(() => {
+                alerta.style.display = 'none';
+            }, 3000); // Ocultar alerta después de 3 segundos
+    
+            // Guardar en el historial
+            const calculo = { media, desviacion, n, nivel: nivel * 100, inferior, superior };
+            historial.push(calculo);
+            actualizarHistorial();
+
+            // Desplazarse a Datos Iniciales
+            document.getElementById('datos-iniciales').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function actualizarHistorial() {
+            const historialElemento = document.getElementById('historial');
+            historialElemento.innerHTML = '';
+            historial.forEach((calculo, index) => {
+                const li = document.createElement('li');
+                li.classList.add('list-group-item');
+                li.innerHTML = `
+                    Estimación puntual: ${calculo.media.toFixed(2)} | Intervalo: (${calculo.inferior}, ${calculo.superior})
+                    <div>
+                        <button class="btn btn-primary btn-sm" onclick="cargarDatos(${calculo.media}, ${calculo.desviacion}, ${calculo.n}, ${calculo.nivel / 100})">Cargar</button>
+                        <button class="btn btn-danger btn-sm" onclick="eliminarHistorial(${index})">Eliminar</button>
+                    </div>
+                `;
+                historialElemento.appendChild(li);
+            });
+    
+            // Guardar el historial en localStorage
+            localStorage.setItem('historial', JSON.stringify(historial));
+        }
+
+        function cargarDatos(media, desviacion, n, nivel) {
+            document.getElementById('media').value = media;
+            document.getElementById('desviacion').value = desviacion;
+            document.getElementById('n').value = n;
+            document.getElementById('nivel').value = nivel;
+            calcularEstimacion(); // Calcular automáticamente
+            document.getElementById('datos-iniciales').scrollIntoView({ behavior: 'smooth' }); // Desplazar a Datos Iniciales
+        }
+
+        function eliminarHistorial(index) {
+            historial.splice(index, 1);
+            actualizarHistorial();
+        }
+
+        function toggleArrow() {
+            const button = document.querySelector('.collapse-button');
+            button.classList.toggle('rotate');
+        }
+
+        // Cargar ejemplos al iniciar
+        window.onload = () => {
+            const ejemplosElemento = document.getElementById('ejemplos');
+            ejemplos.forEach((ejemplo, index) => {
+                const li = document.createElement('li');
+                li.classList.add('list-group-item');
+                li.innerHTML = `${ejemplo.enunciado}`;
+                li.onclick = () => {
+                    cargarDatos(ejemplo.media, ejemplo.desviacion, ejemplo.n, ejemplo.nivel);
+                    calcularEstimacion(); // Llamar al cálculo automáticamente
+                    document.getElementById('datos-iniciales').scrollIntoView({ behavior: 'smooth' }); // Desplazar a Datos Iniciales
+                };
+                ejemplosElemento.appendChild(li);
+            });
+        };
+    </script>
+</body>
+</html>
