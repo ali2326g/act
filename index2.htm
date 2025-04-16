@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculadora Nutricional Venezuela</title>
+    <style>
+        .search-container {
+            position: relative;
+            margin: 2rem 0;
+            max-width: 600px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 14px 20px 14px 50px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 30px;
+            background: #ffffff;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 4px 12px rgba(74,144,226,0.15);
+        }
+
+        #searchInput::placeholder {
+            color: #9e9e9e;
+            font-weight: 300;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9e9e9e;
+            pointer-events: none;
+        }
+
+        #suggestions {
+            margin-top: 8px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid #f0f0f0;
+            overflow: hidden;
+        }
+
+        .suggestion-item {
+            padding: 14px 20px;
+            background: #ffffff;
+            color: #424242;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .suggestion-item:hover {
+            background: #f8f9ff;
+            transform: translateX(4px);
+        }
+
+        .suggestion-item::before {
+            content: "🔍";
+            opacity: 0.6;
+            font-size: 14px;
+        }
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        #summaryTable {
+            margin: 20px 0;
+            width: 100%;
+            border-collapse: collapse;
+            display: none;
+            background: #f8f9fa;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        #summaryTable td, #summaryTable th {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+        }
+        #summaryTable th {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .search-container { position: relative; margin-bottom: 20px; }
+        #suggestions { position: absolute; background: white; border: 1px solid #ddd; width: 100%; z-index: 1000; max-height: 300px; overflow-y: auto; }
+        .suggestion-item { padding: 8px; cursor: pointer; }
+        .suggestion-item:hover { background: #f0f0f0; }
+        .selected-items { margin-top: 20px; }
+        .food-item { margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f8f8f8; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        .nutrient-group { background-color: #e8f4ff; font-weight: bold; }
+        .nutrient-subgroup { background-color: #f0f9ff; padding-left: 20px !important; }
+        .sub-nutrient { padding-left: 40px !important; color: #555; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>Calculadora Nutricional Venezuela</h1>
+    
+    <!-- Tabla resumen en la parte superior -->
+    <table id="summaryTable">
+        <tr>
+            <th>CALORÍAS (kcal)</th>
+            <th>PROTEÍNAS (g)</th>
+            <th>GRASAS (g)</th>
+            <th>HC TOTALES (g)</th>
+        </tr>
+        <tr>
+            <td id="sumCalorias">0</td>
+            <td id="sumProteinas">0</td>
+            <td id="sumGrasas">0</td>
+            <td id="sumHc">0</td>
+        </tr>
+    </table>
+
+    <div id="loading">Cargando base de datos... <div class="loader"></div></div>
+    
+    <div class="search-container" style="display: none;">
+        <div class="search-icon">🔍</div>
+        <input type="text" id="searchInput" placeholder="Escribe el nombre del alimento...">
+        <div id="suggestions"></div>
+    </div>
+
+    <div id="selectedFoods" class="selected-items"></div>
+    
+    <table id="resultsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>Nutriente</th>
+                <th>Valor</th>
+                <th>Nutriente</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        const EXCEL_FILE = 'Composicion De Alimentos Para Uso Práctico.xlsx';
+        let alimentos = [];
+        
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(EXCEL_FILE);
+                const data = await response.arrayBuffer();
+                const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                
+                alimentos = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
+                    .slice(4)
+                    .filter(row => row[1])
+                    .map(row => ({
+                        nombre: row[1]?.trim(),
+                        calorias: row[3],
+                        humedad: row[4],
+                        proteina: row[5],
+                        fosforo: row[6],
+                        potasio: row[7],
+                        grasas: row[8],
+                        carbohidratos_dispon: row[9],
+                        carbohidratos_totales: row[10],
+                        fibra_total: row[11],
+                        fibra_insoluble: row[12],
+                        cenizas: row[13],
+                        calcio: row[14],
+                        hierro: row[16],
+                        magnesio: row[17],
+                        zinc: row[18],
+                        cobre: row[19],
+                        sodio: row[20],
+                        vitamina_a: row[22],
+                        caroteno: row[23],
+                        tiamina: row[24],
+                        riboflavina: row[25],
+                        niacina: row[26],
+                        vitamina_b6: row[27],
+                        vitamina_c: row[28]
+                    }));
+
+                document.getElementById('loading').style.display = 'none';
+                document.querySelector('.search-container').style.display = 'block';
+                document.getElementById('resultsTable').style.display = 'table';
+                searchInput.disabled = false;
+                
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    'Error: No se encontró el archivo ' + EXCEL_FILE + 
+                    '<br>Asegúrate de que esté en la misma carpeta';
+                console.error(error);
+            }
+        });
+
+        const searchInput = document.getElementById('searchInput');
+        const suggestionsDiv = document.getElementById('suggestions');
+        const selectedFoodsDiv = document.getElementById('selectedFoods');
+        const resultsTbody = document.querySelector('#resultsTable tbody');
+
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            suggestionsDiv.innerHTML = '';
+            
+            if (query.length > 1) {
+                const filtered = alimentos.filter(item => 
+                    item.nombre?.toLowerCase().includes(query)
+                ).slice(0, 15);
+                
+                filtered.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.textContent = item.nombre;
+                    div.onclick = () => selectFood(item);
+                    suggestionsDiv.appendChild(div);
+                });
+            }
+        });
+
+        function selectFood(food) {
+            searchInput.value = '';
+            suggestionsDiv.innerHTML = '';
+            selectedFoodsDiv.innerHTML = ''; // Elimina alimentos anteriores
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'food-item';
+            wrapper.innerHTML = `
+                <strong>${food.nombre}</strong><br>
+                Gramos: <input type="number" class="grams-input" value="100" min="1" style="width: 80px;">
+                <button onclick="calculateNutrition(this)">Calcular</button>
+            `;
+            
+            selectedFoodsDiv.appendChild(wrapper);
+        }
+
+        window.calculateNutrition = function(button) {
+            const wrapper = button.parentElement;
+            const grams = parseFloat(wrapper.querySelector('.grams-input').value);
+            const food = alimentos.find(item => item.nombre === wrapper.querySelector('strong').textContent);
+            
+            const multiplier = grams / 100;
+            const nutrientes = [
+                { type: 'group', name: 'Calorías' },
+                { type: 'normal', name: 'Total (kcal)', value: food.calorias },
+
+                { type: 'group', name: 'Macronutrientes' },
+                { type: 'normal', name: 'Proteínas (g)', value: food.proteina },
+                { type: 'normal', name: 'Grasas Totales (g)', value: food.grasas },
+                
+                { type: 'subgroup', name: 'Carbohidratos' },
+                { type: 'sub', name: 'Disponibles (g)', value: food.carbohidratos_dispon },
+                { type: 'sub', name: 'Totales (g)', value: food.carbohidratos_totales },
+                
+                { type: 'subgroup', name: 'Fibra Dietética' },
+                { type: 'sub', name: 'Total (g)', value: food.fibra_total },
+                { type: 'sub', name: 'Insoluble (g)', value: food.fibra_insoluble },
+
+                { type: 'group', name: 'Micronutrientes' },
+                
+                { type: 'subgroup', name: 'Vitaminas' },
+                { type: 'sub', name: 'Vitamina A (F.R.)', value: food.vitamina_a },
+                { type: 'sub', name: 'β-Caroteno (μg)', value: food.caroteno },
+                { type: 'sub', name: 'Tiamina (B1) (mg)', value: food.tiamina },
+                { type: 'sub', name: 'Riboflavina (B2) (mg)', value: food.riboflavina },
+                { type: 'sub', name: 'Niacina (B3) (mg)', value: food.niacina },
+                { type: 'sub', name: 'Vitamina B6 (mg)', value: food.vitamina_b6 },
+                { type: 'sub', name: 'Vitamina C (mg)', value: food.vitamina_c },
+                
+                { type: 'subgroup', name: 'Minerales' },
+                { type: 'sub', name: 'Calcio (mg)', value: food.calcio },
+                { type: 'sub', name: 'Hierro (mg)', value: food.hierro },
+                { type: 'sub', name: 'Fósforo (mg)', value: food.fosforo },
+                { type: 'sub', name: 'Potasio (mg)', value: food.potasio },
+                { type: 'sub', name: 'Magnesio (mg)', value: food.magnesio },
+                { type: 'sub', name: 'Zinc (mg)', value: food.zinc },
+                { type: 'sub', name: 'Cobre (mg)', value: food.cobre },
+                { type: 'sub', name: 'Sodio (mg)', value: food.sodio }
+            ];
+
+            resultsTbody.innerHTML = '';
+            let currentRow = document.createElement('tr');
+            let cellCount = 0;
+
+            nutrientes.forEach(nutriente => {
+                const valorCalculado = ((nutriente.value || 0) * multiplier).toFixed(2);
+                
+                if (nutriente.type === 'group') {
+                    if (cellCount > 0) {
+                        resultsTbody.appendChild(currentRow);
+                        currentRow = document.createElement('tr');
+                        cellCount = 0;
+                    }
+                    const groupRow = document.createElement('tr');
+                    groupRow.innerHTML = `<td colspan="4" class="nutrient-group">${nutriente.name}</td>`;
+                    resultsTbody.appendChild(groupRow);
+                    return;
+                }
+
+                if (nutriente.type === 'subgroup') {
+                    if (cellCount > 0) {
+                        resultsTbody.appendChild(currentRow);
+                        currentRow = document.createElement('tr');
+                        cellCount = 0;
+                    }
+                    const subgroupRow = document.createElement('tr');
+                    subgroupRow.innerHTML = `<td colspan="4" class="nutrient-subgroup">${nutriente.name}</td>`;
+                    resultsTbody.appendChild(subgroupRow);
+                    return;
+                }
+
+                const cell = document.createElement('td');
+                if (nutriente.type === 'sub') {
+                    cell.className = 'sub-nutrient';
+                    cell.textContent = nutriente.name;
+                } else {
+                    cell.textContent = nutriente.name;
+                }
+
+                const valueCell = document.createElement('td');
+                valueCell.textContent = valorCalculado;
+
+                if (cellCount % 2 === 0) {
+                    currentRow.appendChild(cell);
+                    currentRow.appendChild(valueCell);
+                    cellCount += 2;
+                } else {
+                    currentRow.appendChild(cell);
+                    currentRow.appendChild(valueCell);
+                    resultsTbody.appendChild(currentRow);
+                    currentRow = document.createElement('tr');
+                    cellCount = 0;
+                }
+            });
+
+            if (cellCount > 0) resultsTbody.appendChild(currentRow);
+
+            // Actualizar tabla resumen
+            document.getElementById('summaryTable').style.display = 'table';
+            document.getElementById('sumCalorias').textContent = (food.calorias * multiplier).toFixed(2);
+            document.getElementById('sumProteinas').textContent = (food.proteina * multiplier).toFixed(2);
+            document.getElementById('sumGrasas').textContent = (food.grasas * multiplier).toFixed(2);
+            document.getElementById('sumHc').textContent = (food.carbohidratos_totales * multiplier).toFixed(2);
+        };
+    </script>
+</body>
+</html>
